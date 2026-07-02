@@ -1,0 +1,4 @@
+# The batch renderer writes the carousel clips here:
+#   <issue>-<model>-<mode>.mp4   e.g. suicide-head-light.mp4
+# Commit the .mp4s so Vercel hosts them (Instagram fetches them by public URL).
+# Generate with:  cd render && npm install && npx playwright install chromium && npm run render

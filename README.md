@@ -69,3 +69,70 @@ defaults.
 > visitor to be online. Everything else (chrome, type, tokens, fonts) is served
 > from this deployment.
 
+## Share → post to Instagram
+
+Page 3's **SHARE »** button posts the poster as a **2-video carousel** — slide 1
+the light "problem" loop, slide 2 the dark "solution" loop — captioned with the
+user's story. It's a real post via the Instagram Graph API. (Publishing on an
+account's behalf needs a **Business/Creator** account — expected, fine for a demo.)
+
+Moving parts:
+- [`Feed.jsx`](Feed.jsx) — on Share, POSTs `{ issue, model, caption }` to `/api/publish`
+  and shows *Posting…* → *"Posted to Instagram · view post »"* (or an error).
+- [`api/publish.js`](api/publish.js) — Vercel serverless function. Looks up the two
+  clips for the chosen issue+model and runs the carousel publish (2 video
+  containers → wait for processing → carousel → publish → permalink). **The token
+  lives only in env vars**, never in the page.
+- `media/<issue>-<model>-{light,dark}.mp4` — the 50 pre-rendered clips, hosted on
+  this deployment so Instagram can fetch them by public URL.
+- [`render/`](render/) — the offline batch renderer that produces those clips.
+
+### 1 · One-time Meta setup
+
+All doable in the app's **Development mode** — no App Review needed to post to your
+own account:
+1. An **Instagram Business or Creator** account, linked to a **Facebook Page**.
+2. A **Facebook developer app** (Meta for Developers) with the *Instagram Graph API*.
+3. Your IG account added to that app as admin / developer / tester.
+4. A **long-lived access token** with `instagram_basic` + `instagram_content_publish`,
+   plus your **IG user-id**.
+
+Set them as Vercel env vars (Project → Settings → Environment Variables), per
+[`.env.example`](.env.example):
+
+```
+IG_USER_ID=…
+IG_ACCESS_TOKEN=…
+GRAPH_VERSION=v21.0     # optional; bump if that version retires
+```
+
+### 2 · Render the clips
+
+The prismatic art is a cross-origin iframe, so it can't be screen-grabbed from the
+page — the renderer drives a headless browser instead:
+
+```
+cd render
+npm install
+npx playwright install chromium
+npm run render          # all 50 clips → ../media   (~10–15 min)
+npm run render:one      # just suicide-head (both sides), to eyeball first
+```
+
+The model spins continuously, so a clip loops seamlessly only when `--seconds`
+equals one full rotation — nudge it until the wrap is invisible, then render the
+set: `node render-clips.mjs --only suicide-head --seconds 5.6`.
+
+Commit the resulting `media/*.mp4` so they deploy (~1–2 MB each). If the repo gets
+heavy, use **Git LFS** or host the clips on a bucket and set `PUBLIC_BASE_URL`.
+
+### 3 · Deploy & post
+
+Instagram pulls each video from a **public URL**, so a real post only works on the
+**deployed** site — localhost clips aren't reachable by Meta. Push → let Vercel
+deploy → open the live URL → build a poster → **SHARE »**. (Limit: 25 API posts /
+24 h.)
+
+> **Local UI check:** `vercel dev` runs the function locally so you can watch the
+> Posting…/error states, but an actual post still needs the public clips.
+

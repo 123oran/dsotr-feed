@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>DSOTR — poster render harness</title>
+<!-- Loaded one level up from the app root; the batch renderer serves the feed
+     folder as the web root and opens /render/poster.html?issue=…&model=…&mode=… -->
+<link rel="stylesheet" href="../styles.css" />
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js"></script>
+<script src="../_ds_bundle.js"></script>
+<style>
+  html, body { margin: 0; background: #000; }
+  * { scrollbar-width: none; }
+  *::-webkit-scrollbar { display: none; }
+  /* #frame is the exact capture rectangle (the output video size). #stage holds
+     the poster at a smaller BASE size — the same proportions the app preview is
+     tuned for — then scales up to fill the frame. Text is vector (stays crisp);
+     the cross-origin model iframe is raster-scaled (acceptably soft). */
+  #frame { position: absolute; top: 0; left: 0; overflow: hidden; }
+  #stage { position: relative; transform-origin: 0 0; }
+</style>
+</head>
+<body>
+<div id="frame"><div id="stage"></div></div>
+<script src="../posters.js"></script>
+<script type="text/babel" src="../Feed.jsx"></script>
+<script type="text/babel">
+  // Feed.jsx exposes the exact in-app poster renderer + data on window.DSOTR_RENDER.
+  const q = new URLSearchParams(location.search);
+  const R = window.DSOTR_RENDER || {};
+  const { LivePoster, MODELS, ISSUES, issueKey } = R;
+
+  const BASE_W = Number(q.get("bw")) || 360;   // base CSS px — poster looks like the app preview here
+  const BASE_H = Number(q.get("bh")) || 450;   // 4:5
+  const OUT_W  = Number(q.get("w"))  || 1080;  // output/video px
+  const OUT_H  = Number(q.get("h"))  || 1350;
+  const mode   = q.get("mode") === "dark" ? "dark" : "light";
+  const issue  = (ISSUES || []).find((i) => issueKey(i) === q.get("issue")) || (ISSUES || [])[0];
+  const model  = (MODELS || []).find((m) => m.key === q.get("model")) || (MODELS || [])[0];
+
+  const frame = document.getElementById("frame");
+  const stage = document.getElementById("stage");
+  frame.style.width = OUT_W + "px";
+  frame.style.height = OUT_H + "px";
+  stage.style.width = BASE_W + "px";
+  stage.style.height = BASE_H + "px";
+  stage.style.transform = "scale(" + OUT_W / BASE_W + "," + OUT_H / BASE_H + ")";
+
+  function Harness() {
+    return React.createElement(
+      "div",
+      { style: { position: "absolute", inset: 0 } },
+      React.createElement(LivePoster, { issue: issue, model: model, mode: mode, rounded: 0, compact: false })
+    );
+  }
+  ReactDOM.createRoot(stage).render(React.createElement(Harness));
+
+  // Tell the recorder the DOM is mounted. The model iframe still needs a warm-up,
+  // which render-clips.mjs waits out separately before it starts keeping frames.
+  requestAnimationFrame(() => requestAnimationFrame(() => { window.__posterReady = true; }));
+</script>
+</body>
+</html>

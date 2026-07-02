@@ -1,0 +1,5 @@
+# Kept out of the deployed site (media/ IS deployed — Instagram fetches it).
+render/
+.env
+.env.local
+.env.*.local

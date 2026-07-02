@@ -16,3 +16,13 @@ npm-debug.log*
 
 # Vercel
 .vercel
+
+# Secrets (never commit real tokens)
+.env
+.env.local
+.env*.local
+
+# Renderer tooling — installed/generated locally, not committed
+render/node_modules/
+render/.tmp/
+*.webm

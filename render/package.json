@@ -1,0 +1,16 @@
+{
+  "name": "dsotr-feed-renderer",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Offline batch renderer — records one animation loop per DSOTR poster (issue x model x mode) into ../media as Instagram-ready MP4. Not part of the deployed site.",
+  "scripts": {
+    "render": "node render-clips.mjs",
+    "render:one": "node render-clips.mjs --only suicide-head",
+    "list": "node render-clips.mjs --list"
+  },
+  "dependencies": {
+    "ffmpeg-static": "^5.2.0",
+    "playwright": "^1.49.0"
+  }
+}

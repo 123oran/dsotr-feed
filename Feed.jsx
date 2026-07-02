@@ -193,7 +193,7 @@ function Story({ story, setStory }) {
 }
 
 // ---- Screen 3 : Instagram mockup of their post ----
-function Mockup({ issueIdx, modelIdx, mode, setMode, story, shared }) {
+function Mockup({ issueIdx, modelIdx, mode, setMode, story, shared, uploading, postUrl, err }) {
   const issue = ISSUES[issueIdx];
   const caption = story && story.trim() ? story.trim() : issue.caption;
   return (
@@ -218,6 +218,15 @@ function Mockup({ issueIdx, modelIdx, mode, setMode, story, shared }) {
               <strong style={{ fontWeight: 700 }}>you</strong>{" "}
               <span style={{ color: "var(--ink-700)" }}>{caption}</span>
             </div>
+            {(uploading || postUrl || err) && (
+              <div style={{ marginTop: 2, font: "var(--fw-medium) 12px/1.35 var(--font-sans)" }}>
+                {uploading && <span style={{ color: "var(--ink-500)" }}>Uploading to Instagram…</span>}
+                {!uploading && postUrl && (
+                  <a href={postUrl} target="_blank" rel="noopener noreferrer" style={{ color: "var(--ink)", textDecoration: "underline" }}>Posted to Instagram · view post »</a>
+                )}
+                {!uploading && !postUrl && err && <span style={{ color: "var(--like-red)" }}>Couldn't post — {err}</span>}
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -226,7 +235,7 @@ function Mockup({ issueIdx, modelIdx, mode, setMode, story, shared }) {
 }
 
 // ---- Bottom navigation bar — 3-zone grid keeps the progress always centered ----
-function BottomBar({ step, setStep, shared, onShare }) {
+function BottomBar({ step, setStep, shared, uploading, onShare }) {
   const bar = { display: "grid", gridTemplateColumns: "1fr auto 1fr", alignItems: "center", padding: "10px 14px 14px", flexShrink: 0 };
   const left = { justifySelf: "start" };
   const right = { justifySelf: "end" };
@@ -244,7 +253,7 @@ function BottomBar({ step, setStep, shared, onShare }) {
           ? next(step + 1)
           : shared
             ? <NavButton variant="ghost" onClick={() => setStep(0)}>Done</NavButton>
-            : <ShareButton onClick={onShare} style={{ background: "var(--ink)", color: "var(--paper)", imageRendering: "auto", minWidth: 120, padding: "11px 22px", fontSize: 13, border: "1px solid var(--ink)" }}>SHARE »</ShareButton>}
+            : <ShareButton onClick={uploading ? undefined : onShare} style={{ background: "var(--ink)", color: "var(--paper)", imageRendering: "auto", minWidth: 120, padding: "11px 22px", fontSize: 13, border: "1px solid var(--ink)", opacity: uploading ? 0.6 : 1, pointerEvents: uploading ? "none" : "auto" }}>{uploading ? "Posting…" : "SHARE »"}</ShareButton>}
       </div>
     </div>
   );
@@ -257,14 +266,41 @@ function Creator2() {
   const [mode, setMode] = useState("light");
   const [story, setStory] = useState("");
   const [shared, setShared] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [postUrl, setPostUrl] = useState(null);
+  const [err, setErr] = useState(null);
 
-  // Reset the "shared" flag whenever they go back to edit.
-  useEffect(() => { if (step < 2) setShared(false); }, [step]);
+  // Leaving the mockup resets the post state so re-sharing starts clean.
+  useEffect(() => { if (step < 2) { setShared(false); setPostUrl(null); setErr(null); } }, [step]);
+
+  // Publish the two-video carousel (light + dark poster) to Instagram through
+  // the /api/publish serverless function. Caption = the user's story (or the
+  // issue default); the two clips are chosen server-side from issue + model.
+  const publish = async () => {
+    setErr(null); setUploading(true);
+    try {
+      const issue = ISSUES[issueIdx];
+      const caption = story && story.trim() ? story.trim() : issue.caption;
+      const res = await fetch("/api/publish", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ issue: issueKey(issue), model: MODELS[modelIdx].key, caption }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || data.error) throw new Error(data.error || ("Request failed (" + res.status + ")"));
+      setPostUrl(data.permalink || null);
+      setShared(true);
+    } catch (e) {
+      setErr((e && e.message) || "Upload failed");
+    } finally {
+      setUploading(false);
+    }
+  };
 
   let screen;
   if (step === 0) screen = <Creator issueIdx={issueIdx} setIssueIdx={setIssueIdx} modelIdx={modelIdx} setModelIdx={setModelIdx} mode={mode} setMode={setMode} />;
   else if (step === 1) screen = <Story story={story} setStory={setStory} />;
-  else screen = <Mockup issueIdx={issueIdx} modelIdx={modelIdx} mode={mode} setMode={setMode} story={story} shared={shared} />;
+  else screen = <Mockup issueIdx={issueIdx} modelIdx={modelIdx} mode={mode} setMode={setMode} story={story} shared={shared} uploading={uploading} postUrl={postUrl} err={err} />;
 
   return (
     <div style={{ minHeight: "100vh", background: "var(--paper-screen)", display: "flex", alignItems: "center", justifyContent: "center", padding: 24, boxSizing: "border-box" }}>
@@ -272,7 +308,7 @@ function Creator2() {
         <div style={{ display: "flex", flexDirection: "column", height: "100%", background: "var(--paper)" }}>
           <TopBar step={step} />
           <div style={{ flex: 1, minHeight: 0 }}>{screen}</div>
-          <BottomBar step={step} setStep={setStep} shared={shared} onShare={() => setShared(true)} />
+          <BottomBar step={step} setStep={setStep} shared={shared} uploading={uploading} onShare={publish} />
         </div>
       </PhoneFrame>
     </div>
@@ -280,3 +316,13 @@ function Creator2() {
 }
 
 window.DSOTRFeed = Creator2;
+
+// Stable, filename-safe key per issue — matches the media/ clip names and the
+// /api/publish whitelist: "Suicide" -> "suicide", etc. (hoisted, so the
+// publish() handler above can use it).
+function issueKey(issue) { return (issue && issue.name ? issue.name : "").toLowerCase(); }
+
+// Expose the poster renderer + data so the offline batch renderer
+// (render/poster.html) can draw any issue × model × mode exactly like the
+// in-app preview. Unused by the app UI itself.
+window.DSOTR_RENDER = { LivePoster, MODELS, ISSUES, modelURL, issueKey };
