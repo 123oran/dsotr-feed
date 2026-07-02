@@ -1,0 +1,2 @@
+# Prevents GitHub Pages' Jekyll from hiding _-prefixed files (e.g. _ds_bundle.js).
+# Harmless on Vercel; kept as a safety net if this repo is ever served elsewhere.

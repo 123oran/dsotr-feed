@@ -1,0 +1,40 @@
+/* ============================================================
+   FONTS — Inter (the single typeface of the system)
+   Self-hosted .ttf binaries shipped with the design system.
+   Weights actually used in the source: Black 900, Bold 700,
+   Medium 500, Regular 400. (Semi-Bold / Extra-Bold appear in a
+   few Figma layers and fall back to the nearest hosted weight.)
+   ============================================================ */
+
+@font-face {
+  font-family: "Inter";
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+  src: url("../assets/fonts/Inter-Regular.ttf") format("truetype");
+}
+
+@font-face {
+  font-family: "Inter";
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+  src: url("../assets/fonts/Inter-Medium.ttf") format("truetype");
+}
+
+@font-face {
+  font-family: "Inter";
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+  src: url("../assets/fonts/Inter-Bold.ttf") format("truetype");
+}
+
+@font-face {
+  font-family: "Inter";
+  /* Black is the brand voice — covers 800 & 900 requests */
+  font-weight: 800 900;
+  font-style: normal;
+  font-display: swap;
+  src: url("../assets/fonts/Inter-Black.ttf") format("truetype");
+}

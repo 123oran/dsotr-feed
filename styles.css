@@ -1,0 +1,11 @@
+/* ============================================================
+   Dark Side of the Rainbow — Design System
+   Global CSS entry point. Consumers link ONLY this file.
+   Keep this as an @import manifest — no rules inline here.
+   ============================================================ */
+
+@import "./tokens/fonts.css";
+@import "./tokens/colors.css";
+@import "./tokens/typography.css";
+@import "./tokens/spacing.css";
+@import "./figma-tokens/fig-tokens.css";

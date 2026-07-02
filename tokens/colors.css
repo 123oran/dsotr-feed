@@ -1,0 +1,90 @@
+/* ============================================================
+   COLORS — Dark Side of the Rainbow
+   The palette is a deliberate collision of two worlds:
+   a calm, analog PAPER neutral ground, and a loud, digital
+   CMYK / RGB spectrum that erupts out of the generative imagery.
+   Base ramp first, semantic aliases second.
+   ============================================================ */
+
+:root {
+  /* ---- Paper / neutral ground (the "calm" world) ---- */
+  --paper:        #F6F1E7;  /* rgb(246,241,231) — primary canvas, the parchment */
+  --paper-screen: #EFEFF0;  /* rgb(239,239,240) — app chrome / scroll surface  */
+  --white:        #FFFFFF;  /* card & phone screen                              */
+  --sand:         #CCBEA4;  /* rgb(204,190,164) — borders, inactive dots, frames */
+  --sand-soft:    #E4DCCB;  /* lightened sand — placeholder fills               */
+
+  /* ---- Ink (the "calm" world, dark end) ---- */
+  --ink:          #0C0D10;  /* rgb(12,13,16) — primary near-black ink           */
+  --black:        #000000;  /* pure black — dark "solution" pages               */
+  --ink-700:      #232428;  /* softened ink for secondary text on dark          */
+  --ink-500:      #6E6A60;  /* muted caption / metadata on paper                */
+  --gray-300:     #D9D9D9;  /* rgb(217,217,217) — neutral avatar / divider      */
+  --gray-100:     #F1F1F1;  /* rgb(241,241,241) — follow pill, soft fills       */
+
+  /* ---- CMYK — the "light / problem" channel set ---- */
+  --cyan:         #00FFFF;  /* rgb(0,255,255)   */
+  --magenta:      #FF00FF;  /* rgb(255,0,255)   */
+  --yellow:       #FFFF00;  /* rgb(255,255,0)   */
+
+  /* ---- Spectral accents (lifted from the renders) ---- */
+  --pink:         #DB1273;  /* rgb(219,18,115) — hot magenta-pink               */
+  --teal:         #11919F;  /* rgb(17,145,159) — desaturated cyan               */
+  --gold:         #D5A916;  /* rgb(213,169,22) — amber                          */
+  --navy:         #111A2B;  /* rgb(17,26,43)   — deep RGB-blue shadow           */
+
+  /* ---- System / UI signal ---- */
+  --like-red:     #FF3040;  /* the unread badge + heart, straight from IG chrome */
+
+  /* ============================================================
+     SEMANTIC ALIASES — reach for these in components
+     ============================================================ */
+
+  /* Surfaces */
+  --surface-page:        var(--paper);
+  --surface-app:         var(--paper-screen);
+  --surface-card:        var(--white);
+  --surface-invert:      var(--black);   /* the "dark / solution" page          */
+  --surface-placeholder: var(--paper);
+
+  /* Text */
+  --text-strong:    var(--ink);     /* headlines, stats on paper               */
+  --text-body:      var(--ink);
+  --text-muted:     var(--ink-500); /* dates, metadata, "more"                 */
+  --text-on-dark:   var(--white);   /* everything on a solution page           */
+  --text-on-dark-muted: rgba(255,255,255,0.72);
+
+  /* Lines & strokes */
+  --border-hairline: var(--sand);          /* the signature 1px sand frame      */
+  --border-strong:   var(--ink);
+  --divider:         var(--gray-300);
+
+  /* Interactive */
+  --action-fill:     var(--ink);    /* solid dark button (Next », nav active)  */
+  --action-text:     var(--paper);
+  --pill-ghost-bg:   var(--gray-100);
+
+  /* The signature CMYK gradient — used on the SHARE pill & spectral edges.
+     It is DITHERED (Bayer ordered-dither halftone) to match the sliced
+     generative imagery — important buttons should never wear a smooth
+     gradient. Pair with `image-rendering: pixelated` to keep dots crisp. */
+  --gradient-cmyk:
+    url("../assets/dither/cmyk-dither.png") center / 100% 100% no-repeat; /* @kind color */
+
+  /* Smooth fallback — only for faint decorative edges/halos where the
+     dither would read as noise (e.g. a thin spectral hairline). */
+  --gradient-cmyk-smooth:
+    linear-gradient(16deg, var(--magenta) -4%, rgba(255,0,255,0) 36%),
+    linear-gradient(16deg, var(--yellow) 59%, rgba(255,255,0,0) 85%),
+    linear-gradient(var(--cyan), var(--cyan));
+
+  /* A flatter, full-spectrum sweep for bars & active rails */
+  --gradient-spectrum:
+    linear-gradient(90deg,
+      var(--magenta) 0%,
+      var(--like-red) 22%,
+      var(--yellow) 48%,
+      #2BD96B 68%,
+      var(--cyan) 85%,
+      #6A4DFF 100%);
+}
