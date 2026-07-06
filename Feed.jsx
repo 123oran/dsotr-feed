@@ -13,11 +13,11 @@ const ISSUES = window.DSOTR_POSTERS || [];
 // original sketch. The issue (text) and the model (geometry) are chosen
 // independently so users can mix & match. ----
 const MODELS = [
-  { key: "head",  label: "Head",  obj: "femalehead", thumb: "./assets/picker/head.png",  ambCmy: 0.6,  ambRgb: 0.9, spread: 0.8,  ox: 0.55, oy: -0.10, scale: 1.3 },
-  { key: "fist",  label: "Fist",  obj: "fist",       thumb: "./assets/picker/fist.png",  ambCmy: 0.29, ambRgb: 0.29, spread: 0.98, ox: 0.45, oy: -0.10, scale: 1.3 },
-  { key: "eye",   label: "Eye",   obj: "eye",        thumb: "./assets/picker/eye.png",   ambCmy: 0.6,  ambRgb: 0.5, spread: 0.8,  ox: 0.5,  oy: -0.08, scale: 1.25 },
-  { key: "hand",  label: "Hand",  obj: "hand",       thumb: "./assets/picker/hand.png",  ambCmy: 0.6,  ambRgb: 0.9, spread: 0.8,  ox: 0.45, oy: -0.08, scale: 1.2 },
-  { key: "mouth", label: "Mouth", obj: "mouth",      thumb: "./assets/picker/mouth.png", ambCmy: 0.7,  ambRgb: 0.9, spread: 0.2,  spreadRgb: 0.5, ox: 0.55, oy: 0.0, scale: 1.3 },
+  { key: "head",  label: "Head",  obj: "femalehead", thumb: "./assets/picker/head.svg",  ambCmy: 0.6,  ambRgb: 0.9, spread: 0.8,  ox: 0.55, oy: -0.10, scale: 1.3 },
+  { key: "fist",  label: "Fist",  obj: "fist",       thumb: "./assets/picker/fist.svg",  ambCmy: 0.29, ambRgb: 0.29, spread: 0.98, ox: 0.45, oy: -0.10, scale: 1.3 },
+  { key: "eye",   label: "Eye",   obj: "eye",        thumb: "./assets/picker/eye.svg",   ambCmy: 0.6,  ambRgb: 0.5, spread: 0.8,  ox: 0.5,  oy: -0.08, scale: 1.25 },
+  { key: "hand",  label: "Hand",  obj: "hand",       thumb: "./assets/picker/hand.svg",  ambCmy: 0.6,  ambRgb: 0.9, spread: 0.8,  ox: 0.45, oy: -0.08, scale: 1.2 },
+  { key: "mouth", label: "Mouth", obj: "mouth",      thumb: "./assets/picker/mouth.svg", ambCmy: 0.7,  ambRgb: 0.9, spread: 0.2,  spreadRgb: 0.5, ox: 0.55, oy: 0.0, scale: 1.3 },
 ];
 
 const VIEWER = "https://cmyk-stack-viewer.vercel.app/";
@@ -167,11 +167,17 @@ function Creator({ issueIdx, setIssueIdx, modelIdx, setModelIdx, mode, setMode }
           {MODELS.map((m, i) => {
             const sel = i === modelIdx;
             return (
-              <button key={m.key} type="button" onClick={() => setModelIdx(i)}
-                style={{ flex: 1, aspectRatio: "1", padding: 0, cursor: "pointer", borderRadius: 10, overflow: "hidden",
+              <button key={m.key} type="button" onClick={() => setModelIdx(i)} aria-label={m.label} title={m.label}
+                style={{ flex: 1, aspectRatio: "1", display: "grid", placeItems: "center", padding: 0, cursor: "pointer", borderRadius: 10, overflow: "hidden",
                   background: sel ? "var(--ink)" : "var(--sand-soft)",
                   border: sel ? "2px solid var(--ink)" : "1px solid var(--sand)" }}>
-                <img src={m.thumb} alt={m.label} style={{ width: "100%", height: "100%", objectFit: "contain", display: "block" }} />
+                {/* Monochrome model icon, recoloured via CSS mask: ink on sand, white on ink. */}
+                <span aria-hidden="true" style={{ width: "76%", aspectRatio: "1",
+                  background: sel ? "var(--white)" : "var(--ink)",
+                  WebkitMaskImage: `url("${m.thumb}")`, maskImage: `url("${m.thumb}")`,
+                  WebkitMaskRepeat: "no-repeat", maskRepeat: "no-repeat",
+                  WebkitMaskPosition: "center", maskPosition: "center",
+                  WebkitMaskSize: "contain", maskSize: "contain" }} />
               </button>
             );
           })}
@@ -259,8 +265,51 @@ function BottomBar({ step, setStep, shared, uploading, onShare }) {
   );
 }
 
+// ---- Landing screen — brand hero + Start ----
+function Home({ onStart }) {
+  // Prismatic "Rainbow": the CMYK dither over a spectrum-gradient fallback,
+  // clipped to the glyphs — the same trick the "Add Your Story" heading uses.
+  const prism = {
+    backgroundImage: 'url("./assets/dither/cmyk-dither.png"), var(--gradient-spectrum)',
+    backgroundSize: "cover, cover",
+    backgroundRepeat: "no-repeat, no-repeat",
+    backgroundPosition: "center, center",
+    WebkitBackgroundClip: "text",
+    backgroundClip: "text",
+    WebkitTextFillColor: "transparent",
+    color: "transparent",
+    filter: "drop-shadow(1px 1px 0 var(--sand))",
+  };
+  return (
+    <div style={{ display: "flex", flexDirection: "column", height: "100%", background: "var(--paper)" }}>
+      <div style={{ padding: "12px 16px 8px", flexShrink: 0 }}>
+        <span style={{ font: "var(--fw-bold) 11px/1 var(--font-sans)", letterSpacing: "0.06em", color: "var(--ink)" }}>DSOTR</span>
+      </div>
+      <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "center", padding: "0 24px" }}>
+        <h1 style={{ margin: 0, font: "var(--fw-black) 46px/0.96 var(--font-sans)", letterSpacing: "-0.02em", color: "var(--ink)" }}>
+          Dark Side<br />of The <span style={prism}>Rainbow</span>
+        </h1>
+        <div style={{ marginTop: 16, font: "var(--fw-medium) 15px/1.35 var(--font-sans)", color: "var(--ink)" }}>
+          Mental Health Struggles of LGBTQ+ Youth
+        </div>
+        <p style={{ margin: "14px 0 0", maxWidth: 290, font: "var(--fw-regular) 13px/1.5 var(--font-sans)", color: "var(--ink-500)" }}>
+          Turn the hard statistics on LGBTQ+ youth mental health into an Instagram poster. Pick an issue and a model, add your story, and share it.
+        </p>
+      </div>
+      <div style={{ padding: "0 24px 30px", flexShrink: 0 }}>
+        <button type="button" onClick={onStart} style={{
+          all: "unset", display: "block", boxSizing: "border-box", width: "100%", textAlign: "center", cursor: "pointer",
+          background: "var(--ink)", color: "var(--paper)", border: "1px solid var(--ink)", borderRadius: 6,
+          font: "var(--fw-bold) 15px/1 var(--font-sans)", padding: "15px 22px",
+        }}>Start »</button>
+      </div>
+    </div>
+  );
+}
+
 function Creator2() {
   const [step, setStep] = useState(0);
+  const [started, setStarted] = useState(false);
   const [issueIdx, setIssueIdx] = useState(0);
   const [modelIdx, setModelIdx] = useState(0);
   const [mode, setMode] = useState("light");
@@ -305,11 +354,15 @@ function Creator2() {
   return (
     <div style={{ minHeight: "100vh", background: "var(--paper-screen)", display: "flex", alignItems: "center", justifyContent: "center", padding: 24, boxSizing: "border-box" }}>
       <PhoneFrame width={372} height={740} screen="var(--paper)">
-        <div style={{ display: "flex", flexDirection: "column", height: "100%", background: "var(--paper)" }}>
-          <TopBar step={step} />
-          <div style={{ flex: 1, minHeight: 0 }}>{screen}</div>
-          <BottomBar step={step} setStep={setStep} shared={shared} uploading={uploading} onShare={publish} />
-        </div>
+        {!started ? (
+          <Home onStart={() => setStarted(true)} />
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", height: "100%", background: "var(--paper)" }}>
+            <TopBar step={step} />
+            <div style={{ flex: 1, minHeight: 0 }}>{screen}</div>
+            <BottomBar step={step} setStep={setStep} shared={shared} uploading={uploading} onShare={publish} />
+          </div>
+        )}
       </PhoneFrame>
     </div>
   );
