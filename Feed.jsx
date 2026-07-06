@@ -267,27 +267,15 @@ function BottomBar({ step, setStep, shared, uploading, onShare }) {
 
 // ---- Landing screen — brand hero + Start ----
 function Home({ onStart }) {
-  // Prismatic "Rainbow": the CMYK dither over a spectrum-gradient fallback,
-  // clipped to the glyphs — the same trick the "Add Your Story" heading uses.
-  const prism = {
-    backgroundImage: 'url("./assets/dither/cmyk-dither.png"), var(--gradient-spectrum)',
-    backgroundSize: "cover, cover",
-    backgroundRepeat: "no-repeat, no-repeat",
-    backgroundPosition: "center, center",
-    WebkitBackgroundClip: "text",
-    backgroundClip: "text",
-    WebkitTextFillColor: "transparent",
-    color: "transparent",
-    filter: "drop-shadow(1px 1px 0 var(--sand))",
-  };
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%", background: "var(--paper)" }}>
       <div style={{ padding: "12px 16px 8px", flexShrink: 0 }}>
         <span style={{ font: "var(--fw-bold) 11px/1 var(--font-sans)", letterSpacing: "0.06em", color: "var(--ink)" }}>DSOTR</span>
       </div>
       <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "center", padding: "0 24px" }}>
-        <h1 style={{ margin: 0, font: "var(--fw-black) 46px/0.96 var(--font-sans)", letterSpacing: "-0.02em", color: "var(--ink)" }}>
-          Dark Side<br />of The <span style={prism}>Rainbow</span>
+        <h1 style={{ margin: 0, font: "var(--fw-black) 44px/1.0 var(--font-sans)", letterSpacing: "-0.03em", color: "var(--ink)" }}>
+          <span style={{ display: "block", whiteSpace: "nowrap" }}>Dark Side of</span>
+          <span style={{ display: "block", whiteSpace: "nowrap" }}>The Rainbow</span>
         </h1>
         <div style={{ marginTop: 16, font: "var(--fw-medium) 15px/1.35 var(--font-sans)", color: "var(--ink)" }}>
           Mental Health Struggles of LGBTQ+ Youth
