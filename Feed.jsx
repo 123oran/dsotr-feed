@@ -241,25 +241,24 @@ function Mockup({ issueIdx, modelIdx, mode, setMode, story, shared, uploading, p
               <strong style={{ fontWeight: 700 }}>you</strong>{" "}
               <span style={{ color: "var(--ink-700)" }}>{caption}</span>
             </div>
-            {(uploading || postUrl || err) && (
-              <div style={{ marginTop: 2, font: "var(--fw-medium) 12px/1.35 var(--font-sans)" }}>
-                {uploading && <span style={{ color: "var(--ink-500)" }}>Uploading to Instagram…</span>}
-                {!uploading && postUrl && (
-                  <a href={postUrl} target="_blank" rel="noopener noreferrer" style={{ color: "var(--ink)", textDecoration: "underline" }}>Posted to Instagram · view post »</a>
-                )}
-                {!uploading && !postUrl && err && <span style={{ color: "var(--like-red)" }}>Couldn't post — {err}</span>}
-              </div>
-            )}
           </div>
         </div>
       </div>
-      <ConnectBar account={account} authMsg={authMsg} onConnect={onConnect} onDisconnect={onDisconnect} />
+      {uploading || postUrl || err ? (
+        <div style={{ padding: "4px 16px 8px", flexShrink: 0, font: "var(--fw-bold) 13px/1.35 var(--font-sans)" }}>
+          {uploading && <span style={{ color: "var(--ink)" }}>Posting to Instagram… <span style={{ fontWeight: 500, color: "var(--ink-500)" }}>(up to a minute — don't press again)</span></span>}
+          {!uploading && postUrl && <a href={postUrl} target="_blank" rel="noopener noreferrer" style={{ color: "var(--ink)", textDecoration: "underline" }}>Posted to Instagram — view post »</a>}
+          {!uploading && !postUrl && err && <span style={{ color: "var(--like-red)" }}>Couldn't post — <span style={{ fontWeight: 500 }}>{err}</span></span>}
+        </div>
+      ) : (
+        <ConnectBar account={account} authMsg={authMsg} onConnect={onConnect} onDisconnect={onDisconnect} />
+      )}
     </div>
   );
 }
 
 // ---- Bottom navigation bar — 3-zone grid keeps the progress always centered ----
-function BottomBar({ step, setStep, shared, uploading, onShare }) {
+function BottomBar({ step, setStep, shared, uploading, onShare, onDone }) {
   const bar = { display: "grid", gridTemplateColumns: "1fr auto 1fr", alignItems: "center", padding: "10px 14px 14px", flexShrink: 0 };
   const left = { justifySelf: "start" };
   const right = { justifySelf: "end" };
@@ -276,7 +275,7 @@ function BottomBar({ step, setStep, shared, uploading, onShare }) {
         {step < 2
           ? next(step + 1)
           : shared
-            ? <NavButton variant="ghost" onClick={() => setStep(0)}>Done</NavButton>
+            ? <NavButton variant="ghost" onClick={onDone}>Done ›</NavButton>
             : <ShareButton onClick={uploading ? undefined : onShare} style={{ background: "var(--ink)", color: "var(--paper)", imageRendering: "auto", minWidth: 120, padding: "11px 22px", fontSize: 13, border: "1px solid var(--ink)", opacity: uploading ? 0.6 : 1, pointerEvents: uploading ? "none" : "auto" }}>{uploading ? "Posting…" : "SHARE »"}</ShareButton>}
       </div>
     </div>
@@ -367,6 +366,15 @@ function Creator2() {
   const connect = () => goAuth("/api/auth/login");
   const disconnect = () => goAuth("/api/auth/logout");
 
+  // Return to the opening screen + clear the post state (the "Done" button and the
+  // auto-return after a successful post both use this). Keeps the connected account.
+  const reset = () => { setStarted(false); setStep(0); setShared(false); setPostUrl(null); setErr(null); setStory(""); };
+  useEffect(() => {
+    if (!shared) return;
+    const t = setTimeout(reset, 7000);
+    return () => clearTimeout(t);
+  }, [shared]);
+
   // Publish the two-video carousel (light + dark poster) to Instagram through
   // the /api/publish serverless function. Caption = the user's story (or the
   // issue default); the two clips are chosen server-side from issue + model.
@@ -405,7 +413,7 @@ function Creator2() {
           <div style={{ display: "flex", flexDirection: "column", height: "100%", background: "var(--paper)" }}>
             <TopBar step={step} />
             <div style={{ flex: 1, minHeight: 0 }}>{screen}</div>
-            <BottomBar step={step} setStep={setStep} shared={shared} uploading={uploading} onShare={publish} />
+            <BottomBar step={step} setStep={setStep} shared={shared} uploading={uploading} onShare={publish} onDone={reset} />
           </div>
         )}
       </PhoneFrame>

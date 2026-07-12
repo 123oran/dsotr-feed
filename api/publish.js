@@ -85,7 +85,7 @@ module.exports = async (req, res) => {
     return json;
   };
   // Poll container(s) until Instagram finishes ingesting the video(s).
-  const waitFinished = async (ids, timeoutMs = 55000, intervalMs = 3000) => {
+  const waitFinished = async (ids, timeoutMs = 55000, intervalMs = 5000) => {
     const deadline = Date.now() + timeoutMs;
     const pending = new Set(ids);
     while (pending.size) {
@@ -123,7 +123,10 @@ module.exports = async (req, res) => {
     const c1 = (await graphPOST(`${IG_USER_ID}/media`, { media_type: "VIDEO", video_url: lightUrl, is_carousel_item: "true" })).id;
     const c2 = (await graphPOST(`${IG_USER_ID}/media`, { media_type: "VIDEO", video_url: darkUrl, is_carousel_item: "true" })).id;
 
-    // 2 · wait for both videos to finish processing
+    // 2 · wait for both videos to finish processing. They take ~20s+, so pause
+    //     before the first poll to keep the API-call count low (Instagram
+    //     rate-limits, and each Share already makes a dozen-plus calls).
+    await sleep(10000);
     await waitFinished([c1, c2]);
 
     // 3 · bundle them into a carousel container with the caption
