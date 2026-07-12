@@ -17,7 +17,7 @@ const MODELS = [
   { key: "fist",  label: "Fist",  obj: "fist",       thumb: "./assets/picker/fist.svg",  ambCmy: 0.29, ambRgb: 0.29, spread: 0.98, ox: 0.45, oy: -0.10, scale: 1.3 },
   { key: "eye",   label: "Eye",   obj: "eye",        thumb: "./assets/picker/eye.svg",   ambCmy: 0.6,  ambRgb: 0.5, spread: 0.8,  ox: 0.5,  oy: -0.08, scale: 1.25 },
   { key: "hand",  label: "Hand",  obj: "hand",       thumb: "./assets/picker/hand.svg",  ambCmy: 0.6,  ambRgb: 0.9, spread: 0.8,  ox: 0.45, oy: -0.08, scale: 1.2 },
-  { key: "mouth", label: "Mouth", obj: "mouth",      thumb: "./assets/picker/mouth.svg", ambCmy: 0.7,  ambRgb: 0.9, spread: 0.2,  spreadRgb: 0.5, ox: 0.55, oy: 0.0, scale: 1.3 },
+  { key: "mouth", label: "Mouth", obj: "mouth",      thumb: "./assets/picker/mouth.svg", ambCmy: 0.7,  ambRgb: 0.9, spread: 0.8,  ox: 0.55, oy: 0.0, scale: 1.3 },
 ];
 
 const VIEWER = "https://cmyk-stack-viewer.vercel.app/";
@@ -171,9 +171,9 @@ function Creator({ issueIdx, setIssueIdx, modelIdx, setModelIdx, mode, setMode }
                 style={{ flex: 1, aspectRatio: "1", display: "grid", placeItems: "center", padding: 0, cursor: "pointer", borderRadius: 10, overflow: "hidden",
                   background: sel ? "var(--ink)" : "var(--sand-soft)",
                   border: sel ? "2px solid var(--ink)" : "1px solid var(--sand)" }}>
-                {/* Monochrome model icon, recoloured via CSS mask: ink on sand, white on ink. */}
+                {/* Monochrome model icon, recoloured via CSS mask: ink on sand, paper on ink. */}
                 <span aria-hidden="true" style={{ width: "76%", aspectRatio: "1",
-                  background: sel ? "var(--white)" : "var(--ink)",
+                  background: sel ? "var(--paper)" : "var(--ink)",
                   WebkitMaskImage: `url("${m.thumb}")`, maskImage: `url("${m.thumb}")`,
                   WebkitMaskRepeat: "no-repeat", maskRepeat: "no-repeat",
                   WebkitMaskPosition: "center", maskPosition: "center",
@@ -192,7 +192,7 @@ function Story({ story, setStory }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
       <div style={{ flex: 1, padding: "10px 20px" }}>
-        <StoryField className="cmy-heading" heading={"Add\nYour Story"} value={story} onChange={(e) => setStory(e.target.value)} rows={11} />
+        <StoryField heading={"Add\nYour Story"} value={story} onChange={(e) => setStory(e.target.value)} rows={11} />
       </div>
     </div>
   );
@@ -216,17 +216,19 @@ function ConnectBar({ account, authMsg, onConnect, onDisconnect }) {
 }
 
 // ---- Screen 3 : Instagram mockup of their post ----
-function Mockup({ issueIdx, modelIdx, mode, setMode, story, shared, uploading, progress, postUrl, err, account, authMsg, onConnect, onDisconnect }) {
+function Mockup({ issueIdx, modelIdx, mode, setMode, story, shared, err, account, authMsg, onConnect, onDisconnect }) {
   const issue = ISSUES[issueIdx];
   const caption = story && story.trim() ? story.trim() : issue.caption;
+  // Show the handle we'll actually post as (connected account, else the default), "you" as a last resort.
+  const name = (account && account.username) || "you";
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
       <div style={{ flex: 1, overflowY: "auto", padding: "0 12px 8px" }}>
-        <div style={{ background: "var(--white)", border: "1px solid var(--sand)", borderRadius: 12, overflow: "hidden", height: "100%", position: "static" }}>
+        <div style={{ background: "var(--white)", border: "1px solid var(--sand)", borderRadius: 12, overflow: "hidden", minHeight: "100%", position: "static" }}>
           {/* header */}
           <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", height: 32 }}>
             <Avatar size={34} />
-            <span style={{ font: "var(--fw-bold) 14px/1 var(--font-sans)", color: "var(--ink)" }}>you</span>
+            <span style={{ font: "var(--fw-bold) 14px/1 var(--font-sans)", color: "var(--ink)" }}>{name}</span>
             {shared && <span style={{ font: "var(--fw-medium) 11px/1 var(--font-sans)", color: "var(--ink-500)" }}>· just now</span>}
             <span style={{ marginLeft: "auto", color: "var(--ink)", display: "inline-flex" }}><Icon name="dots" size={16} /></span>
           </div>
@@ -238,17 +240,15 @@ function Mockup({ issueIdx, modelIdx, mode, setMode, story, shared, uploading, p
           <div style={{ padding: "10px 14px 12px" }}>
             <ActionBar likes={shared ? 1 : 0} comments={0} shares={0} />
             <div style={{ marginTop: 6, marginBottom: 6, font: "var(--fw-regular) 13px/1.4 var(--font-sans)", color: "var(--ink)" }}>
-              <strong style={{ fontWeight: 700 }}>you</strong>{" "}
+              <strong style={{ fontWeight: 700 }}>{name}</strong>{" "}
               <span style={{ color: "var(--ink-700)" }}>{caption}</span>
             </div>
           </div>
         </div>
       </div>
-      {uploading || postUrl || err ? (
+      {err ? (
         <div style={{ padding: "4px 16px 8px", flexShrink: 0, font: "var(--fw-bold) 13px/1.35 var(--font-sans)" }}>
-          {uploading && <span style={{ color: "var(--ink)" }}>{progress || "Posting to Instagram…"} <span style={{ fontWeight: 500, color: "var(--ink-500)" }}>(this can take a minute or two — don't press again)</span></span>}
-          {!uploading && postUrl && <a href={postUrl} target="_blank" rel="noopener noreferrer" style={{ color: "var(--ink)", textDecoration: "underline" }}>Posted to Instagram — view post »</a>}
-          {!uploading && !postUrl && err && <span style={{ color: "var(--like-red)" }}>Couldn't post — <span style={{ fontWeight: 500 }}>{err}</span></span>}
+          <span style={{ color: "var(--like-red)" }}>Couldn't post — <span style={{ fontWeight: 500 }}>{err}</span></span>
         </div>
       ) : (
         <ConnectBar account={account} authMsg={authMsg} onConnect={onConnect} onDisconnect={onDisconnect} />
@@ -257,8 +257,23 @@ function Mockup({ issueIdx, modelIdx, mode, setMode, story, shared, uploading, p
   );
 }
 
+// ---- Success screen — shown after the post publishes (styled like "Add Your Story") ----
+function Success({ username }) {
+  const handle = username ? "@" + username : "your account";
+  return (
+    <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
+      <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "center", padding: "10px 24px" }}>
+        <div aria-hidden="true" style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 46, height: 46, borderRadius: 999, background: "var(--ink)", color: "var(--paper)", font: "var(--fw-bold) 24px/1 var(--font-sans)", marginBottom: 22 }}>{"✓"}</div>
+        <h2 style={{ margin: 0, font: "var(--fw-black) 33px/1.08 var(--font-sans)", letterSpacing: "-0.02em", color: "var(--ink)" }}>
+          Your post was successfully uploaded to {handle}
+        </h2>
+      </div>
+    </div>
+  );
+}
+
 // ---- Bottom navigation bar — 3-zone grid keeps the progress always centered ----
-function BottomBar({ step, setStep, shared, uploading, onShare, onDone }) {
+function BottomBar({ step, setStep, onExitToHome, shared, postUrl, onShare, onStartOver, onViewPost }) {
   const bar = { display: "grid", gridTemplateColumns: "1fr auto 1fr", alignItems: "center", padding: "10px 14px 14px", flexShrink: 0 };
   const left = { justifySelf: "start" };
   const right = { justifySelf: "end" };
@@ -267,16 +282,29 @@ function BottomBar({ step, setStep, shared, uploading, onShare, onDone }) {
   const back = (to) => <NavButton variant="ghost" onClick={() => setStep(to)}>« Back</NavButton>;
   const next = (to) => <NavButton variant="solid" onClick={() => setStep(to)}>Next »</NavButton>;
 
+  // After a successful post: Start over ↔ View post
+  if (shared) {
+    return (
+      <div style={bar}>
+        <div style={left}><NavButton variant="ghost" onClick={onStartOver}>« Start over</NavButton></div>
+        <div style={center}></div>
+        <div style={right}>
+          <NavButton variant="solid" onClick={onViewPost}
+            style={{ opacity: postUrl ? 1 : 0.5, pointerEvents: postUrl ? "auto" : "none" }}>View post »</NavButton>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div style={bar}>
-      <div style={left}>{step > 0 ? back(step - 1) : null}</div>
+      {/* On the first step "Back" leaves to the landing page; afterwards it steps back. */}
+      <div style={left}>{step > 0 ? back(step - 1) : <NavButton variant="ghost" onClick={onExitToHome}>« Back</NavButton>}</div>
       <div style={center}></div>
       <div style={right}>
         {step < 2
           ? next(step + 1)
-          : shared
-            ? <NavButton variant="ghost" onClick={onDone}>Done ›</NavButton>
-            : <ShareButton onClick={uploading ? undefined : onShare} style={{ background: "var(--ink)", color: "var(--paper)", imageRendering: "auto", minWidth: 120, padding: "11px 22px", fontSize: 13, border: "1px solid var(--ink)", opacity: uploading ? 0.6 : 1, pointerEvents: uploading ? "none" : "auto" }}>{uploading ? "Posting…" : "SHARE »"}</ShareButton>}
+          : <ShareButton onClick={onShare} style={{ background: "var(--ink)", color: "var(--paper)", imageRendering: "auto", minWidth: 120, padding: "11px 22px", fontSize: 13, border: "1px solid var(--ink)" }}>SHARE »</ShareButton>}
       </div>
     </div>
   );
@@ -328,9 +356,29 @@ function Creator2() {
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState(null);   // which publish phase we're on
   const [postUrl, setPostUrl] = useState(null);
+  const [postUser, setPostUser] = useState(null);   // the handle the post actually went to
   const [err, setErr] = useState(null);
   const [account, setAccount] = useState(null);   // { connected, username, source, canPost }
   const [authMsg, setAuthMsg] = useState(null);
+  // Read the phone/desktop split synchronously so a real phone never flashes the
+  // desktop device frame on its first paint before the effect can correct it.
+  const [isPhone, setIsPhone] = useState(() =>
+    typeof window !== "undefined" && !!window.matchMedia && window.matchMedia("(max-width: 640px)").matches);
+  const busyRef = useRef(false);   // guards publish() against re-entrant (double / keyboard) triggers
+  const bodyRef = useRef(null);    // the app body — made inert while a post uploads
+
+  // On a phone, the app IS the screen — render it full-bleed, no PhoneFrame chrome.
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 640px)");
+    const apply = () => setIsPhone(mq.matches);
+    apply();
+    mq.addEventListener ? mq.addEventListener("change", apply) : mq.addListener(apply);
+    return () => { mq.removeEventListener ? mq.removeEventListener("change", apply) : mq.removeListener(apply); };
+  }, []);
+
+  // Fully disable the app (pointer AND keyboard/focus) while a post uploads — the
+  // dimming veil only blocks the mouse, so `inert` closes the keyboard path too.
+  useEffect(() => { if (bodyRef.current) bodyRef.current.inert = uploading; }, [uploading]);
 
   // Leaving the mockup resets the post state so re-sharing starts clean.
   useEffect(() => { if (step < 2) { setShared(false); setPostUrl(null); setErr(null); } }, [step]);
@@ -367,14 +415,9 @@ function Creator2() {
   const connect = () => goAuth("/api/auth/login");
   const disconnect = () => goAuth("/api/auth/logout");
 
-  // Return to the opening screen + clear the post state (the "Done" button and the
-  // auto-return after a successful post both use this). Keeps the connected account.
-  const reset = () => { setStarted(false); setStep(0); setShared(false); setPostUrl(null); setErr(null); setStory(""); };
-  useEffect(() => {
-    if (!shared) return;
-    const t = setTimeout(reset, 7000);
-    return () => clearTimeout(t);
-  }, [shared]);
+  // Return to the opening screen + clear the post state ("Start over" on the success
+  // screen uses this). Keeps the connected account.
+  const reset = () => { setStarted(false); setStep(0); setShared(false); setPostUrl(null); setPostUser(null); setProgress(null); setErr(null); setStory(""); };
 
   // Publish the two-video carousel (light + dark poster) to Instagram through
   // the /api/publish serverless function. Caption = the user's story (or the
@@ -407,6 +450,8 @@ function Creator2() {
     }
   };
   const publish = async () => {
+    if (busyRef.current) return;   // ignore re-entrant triggers (double-click, keyboard Enter behind the veil)
+    busyRef.current = true;
     setErr(null); setPostUrl(null); setUploading(true); setProgress("Uploading the videos…");
     try {
       const issue = ISSUES[issueIdx];
@@ -422,34 +467,70 @@ function Creator2() {
       await waitReady([carousel]);
       // 4 · publish
       setProgress("Publishing…");
-      const { permalink } = await post({ phase: "publish", carousel });
-      setPostUrl(permalink || null);
+      const done = await post({ phase: "publish", carousel });
+      setPostUrl(done.permalink || null);
+      setPostUser(done.account || (account && account.username) || null);
       setShared(true);
     } catch (e) {
       setErr((e && e.message) || "Upload failed");
     } finally {
       setUploading(false);
       setProgress(null);
+      busyRef.current = false;
     }
   };
 
   let screen;
-  if (step === 0) screen = <Creator issueIdx={issueIdx} setIssueIdx={setIssueIdx} modelIdx={modelIdx} setModelIdx={setModelIdx} mode={mode} setMode={setMode} />;
+  if (shared) screen = <Success username={postUser} />;
+  else if (step === 0) screen = <Creator issueIdx={issueIdx} setIssueIdx={setIssueIdx} modelIdx={modelIdx} setModelIdx={setModelIdx} mode={mode} setMode={setMode} />;
   else if (step === 1) screen = <Story story={story} setStory={setStory} />;
-  else screen = <Mockup issueIdx={issueIdx} modelIdx={modelIdx} mode={mode} setMode={setMode} story={story} shared={shared} uploading={uploading} progress={progress} postUrl={postUrl} err={err} account={account} authMsg={authMsg} onConnect={connect} onDisconnect={disconnect} />;
+  else screen = <Mockup issueIdx={issueIdx} modelIdx={modelIdx} mode={mode} setMode={setMode} story={story} shared={shared} err={err} account={account} authMsg={authMsg} onConnect={connect} onDisconnect={disconnect} />;
 
+  const viewPost = () => { if (postUrl) window.open(postUrl, "_blank", "noopener,noreferrer"); };
+
+  // The app body — landing screen OR the 3-step flow. Identical markup whether it
+  // sits inside the desktop device frame or runs full-bleed on a phone.
+  const body = !started ? (
+    <Home onStart={() => setStarted(true)} account={account} onConnect={connect} />
+  ) : (
+    <div style={{ display: "flex", flexDirection: "column", height: "100%", background: "var(--paper)" }}>
+      <TopBar step={step} />
+      <div style={{ flex: 1, minHeight: 0 }}>{screen}</div>
+      <BottomBar step={step} setStep={setStep} onExitToHome={() => setStarted(false)}
+        shared={shared} postUrl={postUrl} onShare={publish} onStartOver={reset} onViewPost={viewPost} />
+    </div>
+  );
+
+  // While a post uploads, disable the whole app behind a dimming veil (it captures
+  // every click) so nothing can be pressed until it finishes.
+  const veil = uploading ? (
+    <div style={{ position: "absolute", inset: 0, zIndex: 50, background: "rgba(246,241,231,0.82)",
+      display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 14, padding: 28, textAlign: "center" }}>
+      <div className="dsotr-spin" style={{ width: 34, height: 34, borderRadius: 999, border: "3px solid var(--sand)", borderTopColor: "var(--ink)" }} />
+      <div style={{ font: "var(--fw-bold) 14px/1.4 var(--font-sans)", color: "var(--ink)", maxWidth: 260 }}>{progress || "Posting to Instagram…"}</div>
+    </div>
+  ) : null;
+
+  const stage = (
+    <div style={{ position: "relative", width: "100%", height: "100%" }}>
+      <div ref={bodyRef} style={{ width: "100%", height: "100%" }}>{body}</div>
+      {veil}
+    </div>
+  );
+
+  // Phone: the app IS the screen — no device mockup, no grey chrome.
+  if (isPhone) {
+    return (
+      <div style={{ height: "100dvh", width: "100%", background: "var(--paper)", overflow: "hidden" }}>
+        {stage}
+      </div>
+    );
+  }
+  // Desktop: float the app inside the black device frame on the grey chrome.
   return (
     <div style={{ minHeight: "100vh", background: "var(--paper-screen)", display: "flex", alignItems: "center", justifyContent: "center", padding: 24, boxSizing: "border-box" }}>
       <PhoneFrame width={372} height={740} screen="var(--paper)">
-        {!started ? (
-          <Home onStart={() => setStarted(true)} account={account} onConnect={connect} />
-        ) : (
-          <div style={{ display: "flex", flexDirection: "column", height: "100%", background: "var(--paper)" }}>
-            <TopBar step={step} />
-            <div style={{ flex: 1, minHeight: 0 }}>{screen}</div>
-            <BottomBar step={step} setStep={setStep} shared={shared} uploading={uploading} onShare={publish} onDone={reset} />
-          </div>
-        )}
+        {stage}
       </PhoneFrame>
     </div>
   );
