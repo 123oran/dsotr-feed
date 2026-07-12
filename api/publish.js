@@ -129,8 +129,21 @@ module.exports = async (req, res) => {
     // 3 · bundle them into a carousel container with the caption
     const carousel = (await graphPOST(`${IG_USER_ID}/media`, { media_type: "CAROUSEL", children: `${c1},${c2}`, caption: cap })).id;
 
-    // 4 · publish
-    const published = (await graphPOST(`${IG_USER_ID}/media_publish`, { creation_id: carousel })).id;
+    // 3b · wait for the carousel container ITSELF to finish — a video carousel is
+    // not publishable the instant its child videos are FINISHED.
+    await waitFinished([carousel], 40000);
+
+    // 4 · publish (retry a few times — the container can report ready a beat early)
+    let published;
+    for (let attempt = 0; ; attempt++) {
+      try {
+        published = (await graphPOST(`${IG_USER_ID}/media_publish`, { creation_id: carousel })).id;
+        break;
+      } catch (e) {
+        if (attempt >= 4) throw e;
+        await sleep(4000);
+      }
+    }
 
     // 5 · fetch the public permalink (best-effort)
     let permalink = null;
@@ -138,6 +151,7 @@ module.exports = async (req, res) => {
 
     return res.status(200).json({ id: published, permalink, lightUrl, darkUrl, account: account.username || null, source: account.source });
   } catch (e) {
+    console.error("publish failed:", (e && e.message) || e);
     return res.status(502).json({ error: (e && e.message) || "Publish failed" });
   }
 };
