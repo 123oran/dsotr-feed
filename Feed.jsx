@@ -216,7 +216,7 @@ function ConnectBar({ account, authMsg, onConnect, onDisconnect }) {
 }
 
 // ---- Screen 3 : Instagram mockup of their post ----
-function Mockup({ issueIdx, modelIdx, mode, setMode, story, shared, uploading, postUrl, err, account, authMsg, onConnect, onDisconnect }) {
+function Mockup({ issueIdx, modelIdx, mode, setMode, story, shared, uploading, progress, postUrl, err, account, authMsg, onConnect, onDisconnect }) {
   const issue = ISSUES[issueIdx];
   const caption = story && story.trim() ? story.trim() : issue.caption;
   return (
@@ -246,7 +246,7 @@ function Mockup({ issueIdx, modelIdx, mode, setMode, story, shared, uploading, p
       </div>
       {uploading || postUrl || err ? (
         <div style={{ padding: "4px 16px 8px", flexShrink: 0, font: "var(--fw-bold) 13px/1.35 var(--font-sans)" }}>
-          {uploading && <span style={{ color: "var(--ink)" }}>Posting to Instagram… <span style={{ fontWeight: 500, color: "var(--ink-500)" }}>(up to a minute — don't press again)</span></span>}
+          {uploading && <span style={{ color: "var(--ink)" }}>{progress || "Posting to Instagram…"} <span style={{ fontWeight: 500, color: "var(--ink-500)" }}>(this can take a minute or two — don't press again)</span></span>}
           {!uploading && postUrl && <a href={postUrl} target="_blank" rel="noopener noreferrer" style={{ color: "var(--ink)", textDecoration: "underline" }}>Posted to Instagram — view post »</a>}
           {!uploading && !postUrl && err && <span style={{ color: "var(--like-red)" }}>Couldn't post — <span style={{ fontWeight: 500 }}>{err}</span></span>}
         </div>
@@ -326,6 +326,7 @@ function Creator2() {
   const [story, setStory] = useState("");
   const [shared, setShared] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [progress, setProgress] = useState(null);   // which publish phase we're on
   const [postUrl, setPostUrl] = useState(null);
   const [err, setErr] = useState(null);
   const [account, setAccount] = useState(null);   // { connected, username, source, canPost }
@@ -378,31 +379,64 @@ function Creator2() {
   // Publish the two-video carousel (light + dark poster) to Instagram through
   // the /api/publish serverless function. Caption = the user's story (or the
   // issue default); the two clips are chosen server-side from issue + model.
+  // Instagram ingests each ~55s HD clip asynchronously — too slow to wait out
+  // inside one serverless call (Vercel Hobby caps functions at 60s). So we drive
+  // the publish as a small state machine: create the two video containers, poll
+  // until Instagram has processed them, bundle them into a carousel, poll that,
+  // then publish. Each /api/publish call returns in a second or two.
+  const post = async (payload) => {
+    const res = await fetch("/api/publish", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || data.error) throw new Error(data.error || ("Request failed (" + res.status + ")"));
+    return data;
+  };
+  // Poll the given container id(s) until Instagram reports them FINISHED.
+  const waitReady = async (ids) => {
+    const deadline = Date.now() + 180000;             // 3-min client-side ceiling
+    await new Promise((r) => setTimeout(r, 6000));    // videos need a beat before the first check
+    for (;;) {
+      const { ready, error } = await post({ phase: "status", ids });
+      if (error) throw new Error(error);
+      if (ready) return;
+      if (Date.now() > deadline) throw new Error("Instagram is still processing — give it a moment and press Share again.");
+      await new Promise((r) => setTimeout(r, 5000));
+    }
+  };
   const publish = async () => {
-    setErr(null); setUploading(true);
+    setErr(null); setPostUrl(null); setUploading(true); setProgress("Uploading the videos…");
     try {
       const issue = ISSUES[issueIdx];
       const caption = story && story.trim() ? story.trim() : issue.caption;
-      const res = await fetch("/api/publish", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ issue: issueKey(issue), model: MODELS[modelIdx].key, caption }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok || data.error) throw new Error(data.error || ("Request failed (" + res.status + ")"));
-      setPostUrl(data.permalink || null);
+      // 1 · create a container per carousel video item
+      const { containers } = await post({ phase: "create", issue: issueKey(issue), model: MODELS[modelIdx].key });
+      // 2 · wait for both clips to finish processing on Instagram's side
+      setProgress("Instagram is processing the videos…");
+      await waitReady(containers);
+      // 3 · bundle them into a carousel container, then wait for it too
+      setProgress("Almost there — building the post…");
+      const { carousel } = await post({ phase: "carousel", containers, caption });
+      await waitReady([carousel]);
+      // 4 · publish
+      setProgress("Publishing…");
+      const { permalink } = await post({ phase: "publish", carousel });
+      setPostUrl(permalink || null);
       setShared(true);
     } catch (e) {
       setErr((e && e.message) || "Upload failed");
     } finally {
       setUploading(false);
+      setProgress(null);
     }
   };
 
   let screen;
   if (step === 0) screen = <Creator issueIdx={issueIdx} setIssueIdx={setIssueIdx} modelIdx={modelIdx} setModelIdx={setModelIdx} mode={mode} setMode={setMode} />;
   else if (step === 1) screen = <Story story={story} setStory={setStory} />;
-  else screen = <Mockup issueIdx={issueIdx} modelIdx={modelIdx} mode={mode} setMode={setMode} story={story} shared={shared} uploading={uploading} postUrl={postUrl} err={err} account={account} authMsg={authMsg} onConnect={connect} onDisconnect={disconnect} />;
+  else screen = <Mockup issueIdx={issueIdx} modelIdx={modelIdx} mode={mode} setMode={setMode} story={story} shared={shared} uploading={uploading} progress={progress} postUrl={postUrl} err={err} account={account} authMsg={authMsg} onConnect={connect} onDisconnect={disconnect} />;
 
   return (
     <div style={{ minHeight: "100vh", background: "var(--paper-screen)", display: "flex", alignItems: "center", justifyContent: "center", padding: 24, boxSizing: "border-box" }}>

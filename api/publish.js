@@ -5,16 +5,26 @@
 //   slide 1 = the light "problem" poster loop,  slide 2 = the dark "solution".
 // The caption is the user's story (or the issue's default).
 //
-// Input (JSON body):  { issue, model, caption }
-//   issue  — one of: suicide | bullying | identity | safety | politics
-//   model  — one of: head | fist | eye | hand | mouth
-//   caption— free text (the user's story)
-// Output (JSON):      { id, permalink, lightUrl, darkUrl }  or  { error }
+// Because Instagram ingests each ~55s HD video asynchronously (often longer than
+// a serverless function is allowed to run — 60s on Vercel Hobby), we do NOT block
+// one request until the post is live. Instead the browser drives a small state
+// machine, one short call per phase (each returns in a second or two):
+//
+//   { phase:"create",   issue, model }        -> { containers:[c1,c2], lightUrl, darkUrl }
+//   { phase:"status",   ids:[...] }            -> { statuses, ready, error? }
+//   { phase:"carousel", containers, caption }  -> { carousel }
+//   { phase:"publish",  carousel }             -> { id, permalink }
+//
+// The client loops the "status" phase between create→carousel and carousel→publish
+// until Instagram reports FINISHED, so no single invocation waits on ingestion.
 //
 // The two clips are NOT taken from the request — they are looked up from the
 // whitelisted issue+model keys as  /media/<issue>-<model>-{light,dark}.mp4  on
 // this same deployment. That keeps the video URLs under our control (no SSRF)
 // and means the caption is the only free-form input that reaches Instagram.
+// Container ids DO come back from the client between phases, but every Graph call
+// runs against the session's own token, so a caller can only ever touch their own
+// containers; ids are still validated as bare numerics as defence-in-depth.
 //
 // Instagram's Graph API *pulls* each video from a PUBLIC url, so this only
 // works from a deployed origin (the Vercel URL) where /media/*.mp4 is publicly
@@ -84,75 +94,82 @@ module.exports = async (req, res) => {
     if (!r.ok || json.error) throw asError(json, r.status);
     return json;
   };
-  // Poll container(s) until Instagram finishes ingesting the video(s).
-  const waitFinished = async (ids, timeoutMs = 55000, intervalMs = 5000) => {
-    const deadline = Date.now() + timeoutMs;
-    const pending = new Set(ids);
-    while (pending.size) {
-      for (const id of [...pending]) {
-        const { status_code } = await graphGET(id, { fields: "status_code" });
-        if (status_code === "FINISHED") pending.delete(id);
-        else if (status_code === "ERROR" || status_code === "EXPIRED") {
-          throw new Error(`Instagram could not process a video (status ${status_code}). Check the clip is a public MP4/H.264.`);
-        }
-      }
-      if (!pending.size) break;
-      if (Date.now() > deadline) {
-        throw new Error("Instagram is still processing the videos. Give it a moment and press Share again.");
-      }
-      await sleep(intervalMs);
-    }
-  };
+  // Container/media ids come back to us from the client between phases; only ever
+  // accept a bare numeric id so nothing else can be smuggled into a Graph path.
+  const isId = (v) => typeof v === "string" && /^\d{1,32}$/.test(v);
 
   try {
-    const { issue, model, caption } = await readJsonBody(req);
-    if (!ISSUE_KEYS.includes(issue)) return res.status(400).json({ error: `Unknown issue "${issue}".` });
-    if (!MODEL_KEYS.includes(model)) return res.status(400).json({ error: `Unknown model "${model}".` });
-    const cap = (typeof caption === "string" ? caption : "").slice(0, 2200);
+    const body = await readJsonBody(req);
+    const phase = body.phase || "create";
 
-    const base = (process.env.PUBLIC_BASE_URL ||
-      `https://${req.headers["x-forwarded-host"] || req.headers.host}`).replace(/\/+$/, "");
-    // The ~55s HD clips are too big for the Vercel deployment (Hobby static cap),
-    // so they live on a public host — set MEDIA_BASE_URL to e.g. the GitHub
-    // Releases download base. Falls back to /media on this deployment.
-    const mediaBase = (process.env.MEDIA_BASE_URL || `${base}/media`).replace(/\/+$/, "");
-    const lightUrl = `${mediaBase}/${issue}-${model}-light.mp4`;
-    const darkUrl = `${mediaBase}/${issue}-${model}-dark.mp4`;
+    // ── Phase 1 · create one container per carousel video item ───────────────
+    if (phase === "create") {
+      const { issue, model } = body;
+      if (!ISSUE_KEYS.includes(issue)) return res.status(400).json({ error: `Unknown issue "${issue}".` });
+      if (!MODEL_KEYS.includes(model)) return res.status(400).json({ error: `Unknown model "${model}".` });
 
-    // 1 · create a container for each carousel video item
-    const c1 = (await graphPOST(`${IG_USER_ID}/media`, { media_type: "VIDEO", video_url: lightUrl, is_carousel_item: "true" })).id;
-    const c2 = (await graphPOST(`${IG_USER_ID}/media`, { media_type: "VIDEO", video_url: darkUrl, is_carousel_item: "true" })).id;
+      const base = (process.env.PUBLIC_BASE_URL ||
+        `https://${req.headers["x-forwarded-host"] || req.headers.host}`).replace(/\/+$/, "");
+      // The ~55s HD clips are too big for the Vercel deployment (Hobby static cap),
+      // so they live on a public host — set MEDIA_BASE_URL to e.g. the GitHub
+      // Releases download base. Falls back to /media on this deployment.
+      const mediaBase = (process.env.MEDIA_BASE_URL || `${base}/media`).replace(/\/+$/, "");
+      const lightUrl = `${mediaBase}/${issue}-${model}-light.mp4`;
+      const darkUrl = `${mediaBase}/${issue}-${model}-dark.mp4`;
 
-    // 2 · wait for both videos to finish processing. They take ~20s+, so pause
-    //     before the first poll to keep the API-call count low (Instagram
-    //     rate-limits, and each Share already makes a dozen-plus calls).
-    await sleep(10000);
-    await waitFinished([c1, c2]);
-
-    // 3 · bundle them into a carousel container with the caption
-    const carousel = (await graphPOST(`${IG_USER_ID}/media`, { media_type: "CAROUSEL", children: `${c1},${c2}`, caption: cap })).id;
-
-    // 3b · wait for the carousel container ITSELF to finish — a video carousel is
-    // not publishable the instant its child videos are FINISHED.
-    await waitFinished([carousel], 40000);
-
-    // 4 · publish (retry a few times — the container can report ready a beat early)
-    let published;
-    for (let attempt = 0; ; attempt++) {
-      try {
-        published = (await graphPOST(`${IG_USER_ID}/media_publish`, { creation_id: carousel })).id;
-        break;
-      } catch (e) {
-        if (attempt >= 4) throw e;
-        await sleep(4000);
-      }
+      const c1 = (await graphPOST(`${IG_USER_ID}/media`, { media_type: "VIDEO", video_url: lightUrl, is_carousel_item: "true" })).id;
+      const c2 = (await graphPOST(`${IG_USER_ID}/media`, { media_type: "VIDEO", video_url: darkUrl, is_carousel_item: "true" })).id;
+      return res.status(200).json({ containers: [c1, c2], lightUrl, darkUrl });
     }
 
-    // 5 · fetch the public permalink (best-effort)
-    let permalink = null;
-    try { permalink = (await graphGET(published, { fields: "permalink" })).permalink; } catch { /* non-fatal */ }
+    // ── Phase 2 · report container status (the client polls this) ────────────
+    // Works for both the child video containers and the carousel container.
+    if (phase === "status") {
+      const ids = (Array.isArray(body.ids) ? body.ids : []).filter(isId).slice(0, 3);
+      if (!ids.length) return res.status(400).json({ error: "No container ids to check." });
+      const statuses = {};
+      for (const id of ids) {
+        const { status_code } = await graphGET(id, { fields: "status_code" });
+        statuses[id] = status_code;
+        if (status_code === "ERROR" || status_code === "EXPIRED") {
+          return res.status(200).json({ statuses, ready: false, error: `Instagram could not process a video (status ${status_code}). Check the clip is a public MP4/H.264.` });
+        }
+      }
+      const ready = ids.every((id) => statuses[id] === "FINISHED");
+      return res.status(200).json({ statuses, ready });
+    }
 
-    return res.status(200).json({ id: published, permalink, lightUrl, darkUrl, account: account.username || null, source: account.source });
+    // ── Phase 3 · bundle the finished videos into a carousel container ───────
+    if (phase === "carousel") {
+      const children = (Array.isArray(body.containers) ? body.containers : []).filter(isId);
+      if (children.length < 2) return res.status(400).json({ error: "Need two finished video containers." });
+      const cap = (typeof body.caption === "string" ? body.caption : "").slice(0, 2200);
+      const carousel = (await graphPOST(`${IG_USER_ID}/media`, { media_type: "CAROUSEL", children: children.join(","), caption: cap })).id;
+      return res.status(200).json({ carousel });
+    }
+
+    // ── Phase 4 · publish the carousel ───────────────────────────────────────
+    // The client has already polled the carousel container to FINISHED, but it can
+    // report ready a beat early — a couple of short retries covers that race.
+    if (phase === "publish") {
+      const carousel = body.carousel;
+      if (!isId(carousel)) return res.status(400).json({ error: "Missing carousel container id." });
+      let published;
+      for (let attempt = 0; ; attempt++) {
+        try {
+          published = (await graphPOST(`${IG_USER_ID}/media_publish`, { creation_id: carousel })).id;
+          break;
+        } catch (e) {
+          if (attempt >= 2) throw e;
+          await sleep(3000);
+        }
+      }
+      let permalink = null;
+      try { permalink = (await graphGET(published, { fields: "permalink" })).permalink; } catch { /* non-fatal */ }
+      return res.status(200).json({ id: published, permalink, account: account.username || null, source: account.source });
+    }
+
+    return res.status(400).json({ error: `Unknown phase "${phase}".` });
   } catch (e) {
     console.error("publish failed:", (e && e.message) || e);
     return res.status(502).json({ error: (e && e.message) || "Publish failed" });
