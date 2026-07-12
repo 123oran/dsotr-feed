@@ -20,13 +20,15 @@
 // works from a deployed origin (the Vercel URL) where /media/*.mp4 is publicly
 // reachable — not from http://localhost. See README → "Publishing to Instagram".
 //
-// Requires env vars (set them in the Vercel project, never in the client):
-//   IG_USER_ID       Instagram Business/Creator user-id (the IG account id)
-//   IG_ACCESS_TOKEN  long-lived token with instagram_basic + instagram_content_publish
-//   GRAPH_VERSION    optional, defaults to v21.0 (bump if that version retires)
-//   PUBLIC_BASE_URL  optional, e.g. https://your-app.vercel.app (else derived
-//                    from the request host)
+// Posts as the account the visitor connected via Instagram Login (session cookie —
+// see api/_ig.js + api/auth/*), OR the env-configured DEFAULT account when nobody
+// is connected. Env for the default account (set in Vercel, never in the client):
+//   IG_USER_ID       default Instagram Business/Creator user-id
+//   IG_ACCESS_TOKEN  default long-lived Instagram-Login token (instagram_business_content_publish)
+//   MEDIA_BASE_URL   where the clips are hosted (e.g. the GitHub Releases base)
 // ============================================================================
+
+const { getAccount, IG_BASE } = require("./_ig.js");
 
 const ISSUE_KEYS = ["suicide", "bullying", "identity", "safety", "politics"];
 const MODEL_KEYS = ["head", "fist", "eye", "hand", "mouth"];
@@ -53,13 +55,15 @@ module.exports = async (req, res) => {
   if (req.method === "OPTIONS") return res.status(204).end();
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
 
-  const IG_USER_ID = process.env.IG_USER_ID;
-  const TOKEN = process.env.IG_ACCESS_TOKEN;
-  const VERSION = process.env.GRAPH_VERSION || "v21.0";
-  if (!IG_USER_ID || !TOKEN) {
-    return res.status(500).json({ error: "Server not configured — set IG_USER_ID and IG_ACCESS_TOKEN." });
+  // Post as the connected account (Instagram Login session) if there is one,
+  // otherwise the env-configured default account.
+  const account = getAccount(req);
+  if (!account) {
+    return res.status(500).json({ error: "No Instagram account available — connect one, or set IG_USER_ID + IG_ACCESS_TOKEN." });
   }
-  const GRAPH = `https://graph.facebook.com/${VERSION}`;
+  const IG_USER_ID = account.igUserId;
+  const TOKEN = account.token;
+  const GRAPH = IG_BASE; // graph.instagram.com (Instagram Login)
 
   // --- Graph API helpers (token injected here, never exposed to the client) ---
   const asError = (json, status) => {
@@ -132,7 +136,7 @@ module.exports = async (req, res) => {
     let permalink = null;
     try { permalink = (await graphGET(published, { fields: "permalink" })).permalink; } catch { /* non-fatal */ }
 
-    return res.status(200).json({ id: published, permalink, lightUrl, darkUrl });
+    return res.status(200).json({ id: published, permalink, lightUrl, darkUrl, account: account.username || null, source: account.source });
   } catch (e) {
     return res.status(502).json({ error: (e && e.message) || "Publish failed" });
   }

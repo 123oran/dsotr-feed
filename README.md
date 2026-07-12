@@ -166,3 +166,33 @@ publishes the carousel. (Limit: 25 API posts / 24 h.)
 > **Local UI check:** `vercel dev` runs the function locally so you can watch the
 > Posting…/error states, but an actual post still needs the hosted clips.
 
+## Let anyone post to their own account (Instagram Login)
+
+By default the app posts to the account in `IG_USER_ID` / `IG_ACCESS_TOKEN`. It also
+supports **"Connect your Instagram"** — any Business/Creator account can log in via
+OAuth and post to **their** account. The home and share screens show a Connect control;
+the access token is stored only in an **encrypted httpOnly cookie**, never in the browser.
+
+- `api/auth/login` → Instagram authorize page → `api/auth/callback` (exchanges the code,
+  stores the session) → `api/auth/session` (status for the UI) / `api/auth/logout`.
+- `api/publish` posts as the connected account, or the env default when nobody's connected.
+- Shared cookie/crypto/session live in `api/_ig.js` (`_`-prefixed → not a route).
+
+### Meta setup (one-time)
+1. In your Meta app add the **Instagram** product → **"API setup with Instagram business login"**.
+2. Copy the **Instagram app ID + secret** → Vercel env `IG_APP_ID`, `IG_APP_SECRET`.
+3. Add the **OAuth redirect URI** `https://<your-app>.vercel.app/api/auth/callback`
+   under the product's *Business login settings → Valid OAuth Redirect URIs*.
+4. Generate `SESSION_SECRET`: `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`.
+5. Make your **default** account's `IG_ACCESS_TOKEN` an *Instagram-Login* token (from this
+   product), not a Facebook-Graph token. `MEDIA_BASE_URL` stays the same.
+6. Redeploy.
+
+### The App-Review reality (important for a demo)
+Publishing to **other people's** accounts with `instagram_business_content_publish` needs
+Meta **App Review** (Live mode — privacy policy, business verification, days–weeks). Until
+then, in **Development mode** the exact same login flow works for **your account + any
+account you add as a tester** (App dashboard → roles → Instagram testers; they accept the
+invite). That's enough to demo "any Business account can connect and post"; opening it to
+the general public is the review step.
+

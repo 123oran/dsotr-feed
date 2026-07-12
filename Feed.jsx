@@ -198,8 +198,25 @@ function Story({ story, setStory }) {
   );
 }
 
+// ---- Connection status / "connect your own Instagram" control ----
+function ConnectBar({ account, authMsg, onConnect, onDisconnect }) {
+  const link = { all: "unset", cursor: "pointer", color: "var(--ink)", textDecoration: "underline", fontWeight: 700 };
+  const strong = { color: "var(--ink)", fontWeight: 700 };
+  const note = { connected: "Connected — you'll post to your own account.", disconnected: "Disconnected.", denied: "Instagram login was cancelled." }[authMsg] || (authMsg ? "Couldn't connect — try again." : null);
+  return (
+    <div style={{ padding: "0 16px 6px", flexShrink: 0, font: "var(--fw-medium) 11.5px/1.4 var(--font-sans)", color: "var(--ink-500)" }}>
+      {note && <div style={{ color: authMsg === "connected" ? "var(--ink)" : "var(--ink-500)", marginBottom: 2 }}>{note}</div>}
+      {account && account.source === "session"
+        ? <span>Posting as <strong style={strong}>@{account.username || "you"}</strong> · <button type="button" onClick={onDisconnect} style={link}>Disconnect</button></span>
+        : account && account.canPost
+          ? <span>Posting to {account.username ? <strong style={strong}>@{account.username}</strong> : "the default account"} · <button type="button" onClick={onConnect} style={link}>Connect your Instagram »</button></span>
+          : <button type="button" onClick={onConnect} style={link}>Connect Instagram to post »</button>}
+    </div>
+  );
+}
+
 // ---- Screen 3 : Instagram mockup of their post ----
-function Mockup({ issueIdx, modelIdx, mode, setMode, story, shared, uploading, postUrl, err }) {
+function Mockup({ issueIdx, modelIdx, mode, setMode, story, shared, uploading, postUrl, err, account, authMsg, onConnect, onDisconnect }) {
   const issue = ISSUES[issueIdx];
   const caption = story && story.trim() ? story.trim() : issue.caption;
   return (
@@ -236,6 +253,7 @@ function Mockup({ issueIdx, modelIdx, mode, setMode, story, shared, uploading, p
           </div>
         </div>
       </div>
+      <ConnectBar account={account} authMsg={authMsg} onConnect={onConnect} onDisconnect={onDisconnect} />
     </div>
   );
 }
@@ -266,7 +284,7 @@ function BottomBar({ step, setStep, shared, uploading, onShare }) {
 }
 
 // ---- Landing screen — brand hero + Start ----
-function Home({ onStart }) {
+function Home({ onStart, account, onConnect }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%", background: "var(--paper)" }}>
       <div style={{ padding: "12px 16px 8px", flexShrink: 0 }}>
@@ -290,6 +308,11 @@ function Home({ onStart }) {
           background: "var(--ink)", color: "var(--paper)", border: "1px solid var(--ink)", borderRadius: 6,
           font: "var(--fw-bold) 15px/1 var(--font-sans)", padding: "15px 22px",
         }}>Start »</button>
+        <div style={{ marginTop: 12, textAlign: "center", font: "var(--fw-medium) 12px/1.4 var(--font-sans)", color: "var(--ink-500)" }}>
+          {account && account.source === "session"
+            ? <span>Connected as <strong style={{ color: "var(--ink)", fontWeight: 700 }}>@{account.username}</strong></span>
+            : <button type="button" onClick={onConnect} style={{ all: "unset", cursor: "pointer", color: "var(--ink)", textDecoration: "underline", fontWeight: 700 }}>Connect your Instagram »</button>}
+        </div>
       </div>
     </div>
   );
@@ -306,9 +329,43 @@ function Creator2() {
   const [uploading, setUploading] = useState(false);
   const [postUrl, setPostUrl] = useState(null);
   const [err, setErr] = useState(null);
+  const [account, setAccount] = useState(null);   // { connected, username, source, canPost }
+  const [authMsg, setAuthMsg] = useState(null);
 
   // Leaving the mockup resets the post state so re-sharing starts clean.
   useEffect(() => { if (step < 2) { setShared(false); setPostUrl(null); setErr(null); } }, [step]);
+
+  // On load: restore the poster if we're returning from the Instagram OAuth
+  // redirect, read the ?ig= result, and find out which account we'll post as.
+  useEffect(() => {
+    try {
+      const saved = sessionStorage.getItem("dsotr_state");
+      if (saved) {
+        sessionStorage.removeItem("dsotr_state");
+        const s = JSON.parse(saved);
+        if (s.started) setStarted(true);
+        if (typeof s.step === "number") setStep(s.step);
+        if (typeof s.issueIdx === "number") setIssueIdx(s.issueIdx);
+        if (typeof s.modelIdx === "number") setModelIdx(s.modelIdx);
+        if (s.mode) setMode(s.mode);
+        if (typeof s.story === "string") setStory(s.story);
+      }
+    } catch (e) {}
+    const ig = new URLSearchParams(window.location.search).get("ig");
+    if (ig) {
+      setAuthMsg(ig);
+      window.history.replaceState({}, "", window.location.pathname + window.location.hash);
+    }
+    fetch("/api/auth/session").then((r) => r.json()).then(setAccount).catch(() => setAccount(null));
+  }, []);
+
+  // Persist the built poster across the full-page OAuth redirect, then navigate.
+  const goAuth = (path) => {
+    try { sessionStorage.setItem("dsotr_state", JSON.stringify({ started, step, issueIdx, modelIdx, mode, story })); } catch (e) {}
+    window.location.href = path;
+  };
+  const connect = () => goAuth("/api/auth/login");
+  const disconnect = () => goAuth("/api/auth/logout");
 
   // Publish the two-video carousel (light + dark poster) to Instagram through
   // the /api/publish serverless function. Caption = the user's story (or the
@@ -337,13 +394,13 @@ function Creator2() {
   let screen;
   if (step === 0) screen = <Creator issueIdx={issueIdx} setIssueIdx={setIssueIdx} modelIdx={modelIdx} setModelIdx={setModelIdx} mode={mode} setMode={setMode} />;
   else if (step === 1) screen = <Story story={story} setStory={setStory} />;
-  else screen = <Mockup issueIdx={issueIdx} modelIdx={modelIdx} mode={mode} setMode={setMode} story={story} shared={shared} uploading={uploading} postUrl={postUrl} err={err} />;
+  else screen = <Mockup issueIdx={issueIdx} modelIdx={modelIdx} mode={mode} setMode={setMode} story={story} shared={shared} uploading={uploading} postUrl={postUrl} err={err} account={account} authMsg={authMsg} onConnect={connect} onDisconnect={disconnect} />;
 
   return (
     <div style={{ minHeight: "100vh", background: "var(--paper-screen)", display: "flex", alignItems: "center", justifyContent: "center", padding: 24, boxSizing: "border-box" }}>
       <PhoneFrame width={372} height={740} screen="var(--paper)">
         {!started ? (
-          <Home onStart={() => setStarted(true)} />
+          <Home onStart={() => setStarted(true)} account={account} onConnect={connect} />
         ) : (
           <div style={{ display: "flex", flexDirection: "column", height: "100%", background: "var(--paper)" }}>
             <TopBar step={step} />
