@@ -108,8 +108,12 @@ module.exports = async (req, res) => {
 
     const base = (process.env.PUBLIC_BASE_URL ||
       `https://${req.headers["x-forwarded-host"] || req.headers.host}`).replace(/\/+$/, "");
-    const lightUrl = `${base}/media/${issue}-${model}-light.mp4`;
-    const darkUrl = `${base}/media/${issue}-${model}-dark.mp4`;
+    // The ~55s HD clips are too big for the Vercel deployment (Hobby static cap),
+    // so they live on a public host — set MEDIA_BASE_URL to e.g. the GitHub
+    // Releases download base. Falls back to /media on this deployment.
+    const mediaBase = (process.env.MEDIA_BASE_URL || `${base}/media`).replace(/\/+$/, "");
+    const lightUrl = `${mediaBase}/${issue}-${model}-light.mp4`;
+    const darkUrl = `${mediaBase}/${issue}-${model}-dark.mp4`;
 
     // 1 · create a container for each carousel video item
     const c1 = (await graphPOST(`${IG_USER_ID}/media`, { media_type: "VIDEO", video_url: lightUrl, is_carousel_item: "true" })).id;

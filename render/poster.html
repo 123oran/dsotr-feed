@@ -46,7 +46,10 @@
   frame.style.height = OUT_H + "px";
   stage.style.width = BASE_W + "px";
   stage.style.height = BASE_H + "px";
-  stage.style.transform = "scale(" + OUT_W / BASE_W + "," + OUT_H / BASE_H + ")";
+  // `zoom` re-lays-out and re-renders at the target size, so the model iframe
+  // renders NATIVELY at 1080-wide (crisp). `transform: scale` would only raster-
+  // upscale the 360px render (soft). Text stays vector-crisp either way.
+  stage.style.zoom = String(OUT_W / BASE_W);
 
   function Harness() {
     return React.createElement(
@@ -57,9 +60,34 @@
   }
   ReactDOM.createRoot(stage).render(React.createElement(Harness));
 
-  // Tell the recorder the DOM is mounted. The model iframe still needs a warm-up,
-  // which render-clips.mjs waits out separately before it starts keeping frames.
-  requestAnimationFrame(() => requestAnimationFrame(() => { window.__posterReady = true; }));
+  // Optional rotateSpeed override. The live app speed (0.8) takes ~75s for one
+  // full turn (period = 60 / rotateSpeed); for short seamless loops the renderer
+  // passes a faster spin so a whole rotation fits the clip. The iframe element is
+  // same-origin (only its content is cross-origin), so we can rewrite its src.
+  const spin = q.get("spin");
+  const markReady = () => { window.__posterReady = true; };
+
+  if (spin) {
+    // Wait for LivePoster's iframe (React may commit it a few frames later), then
+    // rewrite its src to spin faster. That reloads the viewer, so we mark ready
+    // only once the faster URL is set — the renderer's warm-up then covers the
+    // reload + spin-up before it starts capturing.
+    let tries = 0;
+    const iv = setInterval(() => {
+      const f = document.querySelector("iframe");
+      if (f && /rotateSpeed=/.test(f.src)) {
+        f.src = f.src.replace(/rotateSpeed=[\d.]+/, "rotateSpeed=" + spin);
+        clearInterval(iv);
+        markReady();
+      } else if (++tries > 100) {   // ~5s fallback
+        clearInterval(iv);
+        markReady();
+      }
+    }, 50);
+  } else {
+    // Tell the recorder the DOM is mounted (iframe warm-up handled separately).
+    requestAnimationFrame(() => requestAnimationFrame(markReady));
+  }
 </script>
 </body>
 </html>

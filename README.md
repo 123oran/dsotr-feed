@@ -109,30 +109,60 @@ GRAPH_VERSION=v21.0     # optional; bump if that version retires
 ### 2 · Render the clips
 
 The prismatic art is a cross-origin iframe, so it can't be screen-grabbed from the
-page — the renderer drives a headless browser instead:
+page — the renderer drives a headless browser at native 1080×1350, then transcodes
+with a bundled ffmpeg:
 
 ```
 cd render
 npm install
 npx playwright install chromium
-npm run render          # all 50 clips → ../media   (~10–15 min)
+npm run render          # all 50 clips → ../media   (~75 min)
 npm run render:one      # just suicide-head (both sides), to eyeball first
 ```
 
-The model spins continuously, so a clip loops seamlessly only when `--seconds`
-equals one full rotation — nudge it until the wrap is invisible, then render the
-set: `node render-clips.mjs --only suicide-head --seconds 5.6`.
+Each clip is one **full, seamless, slow rotation** (~45–58s, just under Instagram's
+60s carousel cap) at native **1080×1350**. Three things make that work:
 
-Commit the resulting `media/*.mp4` so they deploy (~1–2 MB each). If the repo gets
-heavy, use **Git LFS** or host the clips on a bucket and set `PUBLIC_BASE_URL`.
+- **Full res:** the poster is drawn at a 360px base and scaled with CSS `zoom`, which
+  re-renders the model iframe *natively* at 1080 (plain `transform: scale` would only
+  upscale a soft 360px render).
+- **Per-model pace:** headless frame-rate differs per model (heavy `head` ~30fps,
+  lighter models faster), so the renderer **probes each model's fps first** and sets
+  its `rotateSpeed` so every clip lands at the same `--target` length (default 54s).
+- **Seamless:** it records just over one turn, finds the exact loop point by
+  autocorrelation, trims there, and caps at `--maxlen` (59s) so nothing exceeds 60s.
+  Each clip prints its `loop` length + `seam` score (lower = tighter; ≤0.01 is
+  excellent). A rare `CAPPED` line means the fps dipped — re-render that combo with
+  a lower `--target`, e.g. `node render-clips.mjs --only suicide-head --target 48`.
 
-### 3 · Deploy & post
+Tuning: `--target` (clip length) · `--maxlen` · `--spin` (skip calibration, fixed
+speed) · `--only issue-model` · `--fps`; `DEBUG_AC=1` dumps the autocorrelation curve.
+The 50 clips total ~0.85 GB — too big for git/Vercel, so they're **hosted on GitHub
+Releases**, not committed (next step).
 
-Instagram pulls each video from a **public URL**, so a real post only works on the
-**deployed** site — localhost clips aren't reachable by Meta. Push → let Vercel
-deploy → open the live URL → build a poster → **SHARE »**. (Limit: 25 API posts /
-24 h.)
+### 3 · Host the clips (GitHub Releases)
+
+Instagram fetches each video from a public URL, but 50 HD clips exceed Vercel Hobby's
+~100 MB static cap and shouldn't bloat git — and Google Drive links don't work for
+server-to-server fetch. GitHub Releases hold them as public assets on **this same repo**:
+
+1. Make the repo **public** (so Instagram can fetch the assets without auth).
+2. Create a token with `public_repo` scope at
+   [github.com/settings/tokens](https://github.com/settings/tokens), then
+   `export GITHUB_TOKEN=…` (PowerShell: `$env:GITHUB_TOKEN="…"`).
+3. Upload every `media/*.mp4` to a release:
+   ```
+   cd render && node upload-clips.mjs        # --repo owner/name --tag clips
+   ```
+4. It prints a `MEDIA_BASE_URL` — set it in the Vercel project (Settings → Environment
+   Variables) and redeploy. `/api/publish` builds the video URLs from there.
+
+### 4 · Deploy & post
+
+With the clips hosted and `MEDIA_BASE_URL` set, push → Vercel deploys → open the live
+URL → build a poster → **SHARE »**. Instagram pulls the two clips from Releases and
+publishes the carousel. (Limit: 25 API posts / 24 h.)
 
 > **Local UI check:** `vercel dev` runs the function locally so you can watch the
-> Posting…/error states, but an actual post still needs the public clips.
+> Posting…/error states, but an actual post still needs the hosted clips.
 

@@ -26,3 +26,7 @@ npm-debug.log*
 render/node_modules/
 render/.tmp/
 *.webm
+
+# Rendered clips are hosted on GitHub Releases (too big for git / Vercel Hobby),
+# not committed. Regenerate with render/, upload with render/upload-clips.mjs.
+media/*.mp4
