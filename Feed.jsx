@@ -20,6 +20,17 @@ const MODELS = [
   { key: "mouth", label: "Mouth", obj: "mouth",      thumb: "./assets/picker/mouth.svg", ambCmy: 0.7,  ambRgb: 0.9, spread: 0.8,  ox: 0.55, oy: 0.0, scale: 1.3 },
 ];
 
+// ---- Presentation demo mode -------------------------------------------------
+// `?demo=1` walks the real Share UI (veil, progress, success screen) WITHOUT ever
+// calling Instagram — for showing the flow while API access is being sorted out.
+// It posts nothing. Off unless the flag is in the URL.
+//   ?demo=1&as=<handle>   handle shown on the success screen
+//   ?demo=1&post=<url>    what "View post" opens (e.g. an earlier real post)
+const DEMO = (() => {
+  const q = new URLSearchParams(typeof window !== "undefined" ? window.location.search : "");
+  return { on: q.get("demo") === "1", as: q.get("as"), post: q.get("post") };
+})();
+
 const VIEWER = "https://cmyk-stack-viewer.vercel.app/";
 function modelURL(m, mode) {
   const amb = mode === "light" ? m.ambCmy : m.ambRgb;
@@ -457,6 +468,18 @@ function Creator2() {
     try {
       const issue = ISSUES[issueIdx];
       const caption = story && story.trim() ? story.trim() : issue.caption;
+      // 0 · demo mode: walk the same UI states on a timer, talk to nobody.
+      if (DEMO.on) {
+        for (const [msg, ms] of [["Instagram is processing the videos…", 1800], ["Almost there — building the post…", 1500], ["Publishing…", 1100]]) {
+          await new Promise((r) => setTimeout(r, ms));
+          setProgress(msg);
+        }
+        await new Promise((r) => setTimeout(r, 900));
+        setPostUrl(DEMO.post || null);
+        setPostUser(DEMO.as || (account && account.username) || null);
+        setShared(true);
+        return;
+      }
       // 1 · create a container per carousel video item
       const { containers } = await post({ phase: "create", issue: issueKey(issue), model: MODELS[modelIdx].key });
       // 2 · wait for both clips to finish processing on Instagram's side
