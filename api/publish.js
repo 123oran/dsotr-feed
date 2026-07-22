@@ -76,9 +76,14 @@ module.exports = async (req, res) => {
   const GRAPH = IG_BASE; // graph.instagram.com (Instagram Login)
 
   // --- Graph API helpers (token injected here, never exposed to the client) ---
+  // Surface Meta's error code/subcode too — the message alone ("API access blocked")
+  // is rarely enough to tell a expired token from an app-permission/App-Review block.
   const asError = (json, status) => {
     const g = json && json.error;
-    return new Error(g ? `Instagram: ${g.message}${g.error_user_msg ? " — " + g.error_user_msg : ""}` : `Graph request failed (${status})`);
+    if (!g) return new Error(`Graph request failed (${status})`);
+    const codes = [g.code != null ? `code ${g.code}` : null, g.error_subcode ? `subcode ${g.error_subcode}` : null].filter(Boolean).join(" / ");
+    const parts = [g.message, g.error_user_msg, codes ? `(${codes})` : null].filter(Boolean);
+    return new Error(`Instagram: ${parts.join(" — ")}`);
   };
   const graphGET = async (path, params = {}) => {
     const qs = new URLSearchParams({ ...params, access_token: TOKEN });

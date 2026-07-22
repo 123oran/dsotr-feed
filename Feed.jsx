@@ -246,13 +246,14 @@ function Mockup({ issueIdx, modelIdx, mode, setMode, story, shared, err, account
           </div>
         </div>
       </div>
-      {err ? (
-        <div style={{ padding: "4px 16px 8px", flexShrink: 0, font: "var(--fw-bold) 13px/1.35 var(--font-sans)" }}>
+      {/* Always keep the connect control reachable — an error must never hide the
+          one button that fixes it (you can't post until an account is connected). */}
+      {err && (
+        <div style={{ padding: "4px 16px 2px", flexShrink: 0, font: "var(--fw-bold) 12.5px/1.35 var(--font-sans)" }}>
           <span style={{ color: "var(--like-red)" }}>Couldn't post — <span style={{ fontWeight: 500 }}>{err}</span></span>
         </div>
-      ) : (
-        <ConnectBar account={account} authMsg={authMsg} onConnect={onConnect} onDisconnect={onDisconnect} />
       )}
+      <ConnectBar account={account} authMsg={authMsg} onConnect={onConnect} onDisconnect={onDisconnect} />
     </div>
   );
 }
